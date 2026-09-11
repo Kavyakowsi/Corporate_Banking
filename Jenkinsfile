@@ -1,6 +1,5 @@
 pipeline {
 
-```
 agent any
 
 options {
@@ -382,4 +381,3 @@ stages {
                 ) else (
                     echo backend.log was not created.
                 )
-```
