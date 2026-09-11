@@ -1,4 +1,4 @@
-```groovy
+
 pipeline {
 
     agent any
@@ -564,4 +564,4 @@ pipeline {
                         $directory = Get-ChildItem `
                             -Path "$env:QUIZZ_BIN/Server/Properties" `
                             -Directory `
-```
+
