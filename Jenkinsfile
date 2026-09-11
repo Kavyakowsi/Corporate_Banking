@@ -1,6 +1,6 @@
 pipeline {
 
-```
+
 agent any
 
 options {
@@ -899,4 +899,4 @@ stages {
                     echo ERROR: Web WAR does not exist.
                     exit /b 1
                 )
-```
+
