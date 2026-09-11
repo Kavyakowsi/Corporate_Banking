@@ -1,567 +1,815 @@
-
 pipeline {
 
-    agent any
+```
+agent any
 
-    options {
-        timeout(time: 30, unit: 'MINUTES')
-        disableConcurrentBuilds()
-        durabilityHint('PERFORMANCE_OPTIMIZED')
+options {
+    timeout(time: 60, unit: 'MINUTES')
+    disableConcurrentBuilds()
+    durabilityHint('PERFORMANCE_OPTIMIZED')
+}
+
+environment {
+
+    // ============================================================
+    // JAVA
+    // ============================================================
+
+    JAVA_HOME = 'C:/Program Files/Java/jdk-17.0.2'
+
+    // ============================================================
+    // MAVEN
+    // ============================================================
+
+    MAVEN_HOME = 'D:/apache-maven-3.8.5'
+
+    // ============================================================
+    // BACKEND
+    // ============================================================
+
+    BACKEND_PORT = '8080'
+    BACKEND_URL = 'http://localhost:8080/api/transfers'
+
+    // Jenkins will populate these during the build.
+    POM_FILE = ''
+    MAVEN_PROJECT_DIR = ''
+    APP_JAR = ''
+
+    // ============================================================
+    // TOMCAT
+    // ============================================================
+
+    APPZ_HOME = 'D:/Tomcat9/apache-tomcat-9.0.53/apache-tomcat-9.0.53'
+    TOMCAT_PORT = '8085'
+    APPZILLON_URL = 'http://localhost:8085/Corporate_Banking'
+
+    // ============================================================
+    // APPZILLON
+    // ============================================================
+
+    APPZ_ARTIFACTS = 'D:/forDeploy'
+    QUIZZ_PROJECT = 'D:/Corporate_Banking/Corporate_Banking'
+    QUIZZ_BIN = 'D:/Corporate_Banking/Corporate_Banking/bin'
+
+    // ============================================================
+    // DATABASE
+    // ============================================================
+
+    DB_NAME = 'corporate_banking'
+    DB_USER = 'root'
+    DB_PASS = 'root'
+    MYSQL_BIN = 'C:/Program Files/MySQL/MySQL Server 8.0/bin'
+
+    // ============================================================
+    // PLAYWRIGHT
+    // ============================================================
+
+    PLAYWRIGHT_DIR = ''
+}
+
+stages {
+
+    // ============================================================
+    // 1. CHECKOUT SOURCE
+    // ============================================================
+
+    stage('Checkout Source') {
+
+        steps {
+
+            echo '=========================================='
+            echo 'CHECKING OUT SOURCE CODE'
+            echo '=========================================='
+
+            checkout scm
+
+            bat '''
+                @echo off
+
+                echo.
+                echo ==========================================
+                echo WORKSPACE
+                echo ==========================================
+                echo %WORKSPACE%
+
+                echo.
+                echo ==========================================
+                echo PROJECT FILES
+                echo ==========================================
+                dir /b
+
+                echo.
+                echo Source checkout completed successfully.
+            '''
+        }
     }
 
-    environment {
+    // ============================================================
+    // 2. FIND MAVEN PROJECT
+    // ============================================================
 
-        // ============================================================
-        // JAVA
-        // ============================================================
+    stage('Find Maven Project') {
 
-        JAVA_HOME = 'C:/Program Files/Java/jdk-17.0.2'
+        steps {
 
-        // ============================================================
-        // MAVEN
-        // ============================================================
+            echo '=========================================='
+            echo 'SEARCHING FOR POM.XML'
+            echo '=========================================='
 
-        MAVEN_HOME = 'D:/apache-maven-3.8.5'
+            script {
 
-        // ============================================================
-        // BACKEND
-        // ============================================================
+                def pomPath = bat(
+                    returnStdout: true,
+                    script: '''
+                        @echo off
+                        setlocal enabledelayedexpansion
 
-        BACKEND_PORT = '8080'
+                        set "FOUND_POM="
 
-        BACKEND_URL = 'http://localhost:8080/api/transfers'
-
-        // ============================================================
-        // TOMCAT
-        // ============================================================
-
-        APPZ_HOME = 'D:/Tomcat9/apache-tomcat-9.0.53/apache-tomcat-9.0.53'
-
-        TOMCAT_PORT = '8085'
-
-        APPZILLON_URL = 'http://localhost:8085/Corporate_Banking'
-
-        // ============================================================
-        // APPZILLON
-        // ============================================================
-
-        APPZ_ARTIFACTS = 'D:/forDeploy'
-
-        QUIZZ_PROJECT = 'D:/Corporate_Banking/Corporate_Banking'
-
-        QUIZZ_BIN = 'D:/Corporate_Banking/Corporate_Banking/bin'
-
-        // ============================================================
-        // DATABASE
-        // ============================================================
-
-        DB_NAME = 'corporate_banking'
-
-        DB_USER = 'root'
-
-        DB_PASS = 'root'
-
-        MYSQL_BIN = 'C:/Program Files/MySQL/MySQL Server 8.0/bin'
-
-        // ============================================================
-        // PLAYWRIGHT
-        // ============================================================
-
-        // IMPORTANT:
-        // This is relative to the Git checkout.
-        // It will be resolved after checkout.
-        PLAYWRIGHT_DIR = '.'
-    }
-
-    stages {
-
-        // ============================================================
-        // 1. CHECKOUT SOURCE
-        // ============================================================
-
-        stage('Checkout Source') {
-
-            steps {
-
-                echo '=========================================='
-                echo 'CHECKING OUT CORPORATE BANKING SOURCE'
-                echo '=========================================='
-
-                checkout scm
-
-                echo 'Source checkout completed.'
-
-                bat '''
-                    @echo off
-
-                    echo.
-                    echo ==========================================
-                    echo WORKSPACE
-                    echo ==========================================
-
-                    echo %WORKSPACE%
-
-                    echo.
-                    echo ==========================================
-                    echo PROJECT STRUCTURE
-                    echo ==========================================
-
-                    dir "%WORKSPACE%"
-
-                    echo.
-                    echo ==========================================
-                    echo MAVEN PROJECTS
-                    echo ==========================================
-
-                    dir /s /b "%WORKSPACE%\\pom.xml"
-                '''
-            }
-        }
-
-        // ============================================================
-        // 2. BUILD BACKEND JAR
-        // ============================================================
-
-        stage('Build Backend Jar') {
-
-            steps {
-
-                echo '=========================================='
-                echo 'BUILDING CORPORATE BANKING BACKEND'
-                echo '=========================================='
-
-                bat '''
-                    @echo off
-
-                    set "JAVA_HOME=%JAVA_HOME%"
-                    set "PATH=%JAVA_HOME%\\bin;%MAVEN_HOME%\\bin;%PATH%"
-
-                    echo.
-                    echo ==========================================
-                    echo JAVA VERSION
-                    echo ==========================================
-
-                    java -version
-
-                    echo.
-                    echo ==========================================
-                    echo MAVEN VERSION
-                    echo ==========================================
-
-                    mvn -version
-
-                    echo.
-                    echo ==========================================
-                    echo FINDING POM.XML
-                    echo ==========================================
-
-                    set "POM_FILE="
-
-                    for /f "delims=" %%F in ('dir /s /b "%WORKSPACE%\\pom.xml" 2^>nul') do (
-                        if not defined POM_FILE set "POM_FILE=%%F"
-                    )
-
-                    if "%POM_FILE%"=="" (
-                        echo ERROR: pom.xml was not found in Jenkins workspace.
-                        echo Workspace:
-                        echo %WORKSPACE%
-                        exit /b 1
-                    )
-
-                    echo POM FILE:
-                    echo %POM_FILE%
-
-                    for %%F in ("%POM_FILE%") do (
-                        set "MAVEN_PROJECT_DIR=%%~dpF"
-                    )
-
-                    echo.
-                    echo ==========================================
-                    echo MAVEN PROJECT DIRECTORY
-                    echo ==========================================
-
-                    echo %MAVEN_PROJECT_DIR%
-
-                    cd /d "%MAVEN_PROJECT_DIR%"
-
-                    echo.
-                    echo ==========================================
-                    echo CURRENT DIRECTORY
-                    echo ==========================================
-
-                    cd
-
-                    echo.
-                    echo ==========================================
-                    echo MAVEN BUILD
-                    echo ==========================================
-
-                    mvn clean package -DskipTests
-
-                    if errorlevel 1 (
-                        echo.
-                        echo ==========================================
-                        echo MAVEN BUILD FAILED
-                        echo ==========================================
-                        exit /b 1
-                    )
-
-                    echo.
-                    echo ==========================================
-                    echo MAVEN BUILD SUCCESSFUL
-                    echo ==========================================
-
-                    echo.
-                    echo ==========================================
-                    echo GENERATED JAR FILES
-                    echo ==========================================
-
-                    dir /s /b "*.jar"
-                '''
-            }
-        }
-
-        // ============================================================
-        // 3. FIND GENERATED JAR
-        // ============================================================
-
-        stage('Find Backend Jar') {
-
-            steps {
-
-                echo '=========================================='
-                echo 'FINDING GENERATED BACKEND JAR'
-                echo '=========================================='
-
-                script {
-
-                    def jarPath = bat(
-                        script: '''
-                            @echo off
-                            for /f "delims=" %%F in ('dir /s /b "%WORKSPACE%\\target\\*.jar" 2^>nul') do (
-                                echo %%F
-                                exit /b 0
+                        for /f "delims=" %%F in ('dir /s /b "%WORKSPACE%\\pom.xml" 2^>nul') do (
+                            if not defined FOUND_POM (
+                                set "FOUND_POM=%%F"
                             )
-
-                            exit /b 1
-                        ''',
-                        returnStatus: true
-                    )
-
-                    if (jarPath != 0) {
-
-                        error(
-                            'No JAR file was generated inside the Jenkins workspace.'
                         )
-                    }
 
-                    def output = bat(
-                        script: '''
-                            @echo off
-                            for /f "delims=" %%F in ('dir /s /b "%WORKSPACE%\\target\\*.jar" 2^>nul') do (
-                                echo %%F
-                                exit /b 0
-                            )
-                        ''',
-                        returnStdout: true
-                    ).trim()
-
-                    def lines = output.readLines()
-
-                    def generatedJar = lines.find {
-                        it.toLowerCase().endsWith('.jar')
-                    }
-
-                    if (!generatedJar) {
-                        error(
-                            'Generated JAR could not be identified.'
+                        if not defined FOUND_POM (
+                            echo POM_NOT_FOUND
+                            exit /b 0
                         )
-                    }
 
-                    env.APP_JAR = generatedJar
+                        echo !FOUND_POM!
+                    '''
+                ).trim()
 
-                    echo '=========================================='
-                    echo 'BACKEND JAR FOUND'
-                    echo '=========================================='
-                    echo "APP_JAR = ${env.APP_JAR}"
+                if (!pomPath || pomPath == 'POM_NOT_FOUND') {
+                    error("pom.xml was not found anywhere inside Jenkins workspace: ${env.WORKSPACE}")
                 }
+
+                def pomLines = pomPath.readLines()
+                def actualPom = pomLines.find { line ->
+                    line.trim().toLowerCase().endsWith('pom.xml')
+                }
+
+                if (!actualPom) {
+                    error("Unable to determine pom.xml path.")
+                }
+
+                env.POM_FILE = actualPom.trim()
+
+                def pomFile = new File(env.POM_FILE)
+                env.MAVEN_PROJECT_DIR = pomFile.getParent()
+
+                echo "pom.xml found:"
+                echo env.POM_FILE
+
+                echo "Maven project directory:"
+                echo env.MAVEN_PROJECT_DIR
             }
         }
+    }
 
-        // ============================================================
-        // 4. STOP OLD BACKEND
-        // ============================================================
+    // ============================================================
+    // 3. BUILD BACKEND JAR
+    // ============================================================
 
-        stage('Stop Old Backend') {
+    stage('Build Backend Jar') {
 
-            steps {
+        steps {
 
-                echo '=========================================='
-                echo 'STOPPING OLD BACKEND'
-                echo '=========================================='
+            echo '=========================================='
+            echo 'BUILDING CORPORATE BANKING BACKEND'
+            echo '=========================================='
 
-                bat '''
-                    @echo off
+            bat '''
+                @echo off
+                setlocal
 
-                    echo Checking port %BACKEND_PORT%...
+                set "JAVA_HOME=%JAVA_HOME%"
+                set "PATH=%JAVA_HOME%\\bin;%MAVEN_HOME%\\bin;%PATH%"
 
-                    for /f "tokens=5" %%a in (
-                        'netstat -ano ^| findstr :%BACKEND_PORT% ^| findstr LISTENING'
-                    ) do (
-                        echo Stopping PID %%a
-                        taskkill /F /PID %%a >nul 2>&1
-                    )
+                echo.
+                echo ==========================================
+                echo JAVA VERSION
+                echo ==========================================
 
-                    echo Waiting...
+                java -version
 
-                    ping 127.0.0.1 -n 4 >nul
+                if errorlevel 1 (
+                    echo ERROR: Java is not available.
+                    exit /b 1
+                )
 
-                    echo Backend port checked.
-                '''
-            }
-        }
+                echo.
+                echo ==========================================
+                echo MAVEN VERSION
+                echo ==========================================
 
-        // ============================================================
-        // 5. START BACKEND
-        // ============================================================
+                mvn -version
 
-        stage('Deploy Backend') {
+                if errorlevel 1 (
+                    echo ERROR: Maven is not available.
+                    exit /b 1
+                )
 
-            steps {
+                echo.
+                echo ==========================================
+                echo MAVEN PROJECT
+                echo ==========================================
 
-                echo '=========================================='
-                echo 'STARTING CORPORATE BANKING BACKEND'
-                echo '=========================================='
+                echo POM:
+                echo %POM_FILE%
 
-                bat '''
-                    @echo off
+                echo.
+                echo PROJECT DIRECTORY:
+                echo %MAVEN_PROJECT_DIR%
 
-                    set "JAVA_HOME=%JAVA_HOME%"
-                    set "PATH=%JAVA_HOME%\\bin;%PATH%"
+                if not exist "%POM_FILE%" (
+                    echo ERROR: pom.xml does not exist.
+                    exit /b 1
+                )
 
-                    set "JENKINS_NODE_COOKIE=dontKillMe"
+                cd /d "%MAVEN_PROJECT_DIR%"
 
-                    echo JAVA_HOME:
-                    echo %JAVA_HOME%
+                echo.
+                echo Current directory:
+                cd
 
+                echo.
+                echo ==========================================
+                echo MAVEN CLEAN PACKAGE
+                echo ==========================================
+
+                call mvn clean package -DskipTests
+
+                if errorlevel 1 (
                     echo.
-                    echo Backend JAR:
+                    echo ==========================================
+                    echo MAVEN BUILD FAILED
+                    echo ==========================================
+                    exit /b 1
+                )
+
+                echo.
+                echo ==========================================
+                echo MAVEN BUILD SUCCESSFUL
+                echo ==========================================
+
+                echo.
+                echo ==========================================
+                echo TARGET DIRECTORY
+                echo ==========================================
+
+                if exist target (
+                    dir target
+                ) else (
+                    echo ERROR: target directory was not created.
+                    exit /b 1
+                )
+            '''
+        }
+    }
+
+    // ============================================================
+    // 4. FIND GENERATED JAR
+    // ============================================================
+
+    stage('Find Generated Backend Jar') {
+
+        steps {
+
+            echo '=========================================='
+            echo 'SEARCHING FOR GENERATED JAR'
+            echo '=========================================='
+
+            script {
+
+                def jarPath = bat(
+                    returnStdout: true,
+                    script: '''
+                        @echo off
+                        setlocal enabledelayedexpansion
+
+                        cd /d "%MAVEN_PROJECT_DIR%"
+
+                        set "FOUND_JAR="
+
+                        for /f "delims=" %%F in ('dir /b /a-d "target\\*.jar" 2^>nul') do (
+
+                            echo %%F
+
+                            echo %%F | findstr /I /V /C:"original-" >nul
+
+                            if not errorlevel 1 (
+                                if not defined FOUND_JAR (
+                                    set "FOUND_JAR=%MAVEN_PROJECT_DIR%\\target\\%%F"
+                                )
+                            )
+                        )
+
+                        if not defined FOUND_JAR (
+                            echo JAR_NOT_FOUND
+                            exit /b 0
+                        )
+
+                        echo GENERATED_JAR=!FOUND_JAR!
+                    '''
+                ).trim()
+
+                def generatedJar = jarPath
+                    .readLines()
+                    .find { line ->
+                        line.startsWith('GENERATED_JAR=')
+                    }
+
+                if (!generatedJar) {
+                    error("Generated backend JAR was not found in ${env.MAVEN_PROJECT_DIR}/target")
+                }
+
+                env.APP_JAR = generatedJar
+                    .substring('GENERATED_JAR='.length())
+                    .trim()
+
+                if (!fileExists(env.APP_JAR)) {
+                    error("Generated JAR does not exist: ${env.APP_JAR}")
+                }
+
+                echo "Generated backend JAR:"
+                echo env.APP_JAR
+            }
+        }
+    }
+
+    // ============================================================
+    // 5. VERIFY BACKEND JAR
+    // ============================================================
+
+    stage('Verify Backend Jar') {
+
+        steps {
+
+            echo '=========================================='
+            echo 'VERIFYING BACKEND JAR'
+            echo '=========================================='
+
+            bat '''
+                @echo off
+
+                if "%APP_JAR%"=="" (
+                    echo ERROR: APP_JAR variable is empty.
+                    exit /b 1
+                )
+
+                if not exist "%APP_JAR%" (
+                    echo ERROR: Backend JAR does not exist.
+                    echo Expected:
                     echo %APP_JAR%
+                    exit /b 1
+                )
 
-                    if not exist "%APP_JAR%" (
-                        echo ERROR: Generated JAR does not exist.
-                        exit /b 1
-                    )
+                echo.
+                echo ==========================================
+                echo BACKEND JAR FOUND
+                echo ==========================================
 
+                echo %APP_JAR%
+
+                echo.
+                echo File details:
+
+                dir "%APP_JAR%"
+            '''
+        }
+    }
+
+    // ============================================================
+    // 6. STOP OLD BACKEND
+    // ============================================================
+
+    stage('Stop Old Backend') {
+
+        steps {
+
+            echo '=========================================='
+            echo 'STOPPING OLD BACKEND'
+            echo '=========================================='
+
+            bat '''
+                @echo off
+
+                echo Checking backend port:
+                echo %BACKEND_PORT%
+
+                for /f "tokens=5" %%a in (
+                    'netstat -ano ^| findstr :%BACKEND_PORT% ^| findstr LISTENING'
+                ) do (
+
+                    echo Stopping backend PID %%a
+
+                    taskkill /F /PID %%a >nul 2>&1
+                )
+
+                echo.
+                echo Waiting for backend process to stop...
+
+                ping 127.0.0.1 -n 4 >nul
+
+                echo Backend process check completed.
+            '''
+        }
+    }
+
+    // ============================================================
+    // 7. START BACKEND
+    // ============================================================
+
+    stage('Deploy Backend') {
+
+        steps {
+
+            echo '=========================================='
+            echo 'STARTING CORPORATE BANKING BACKEND'
+            echo '=========================================='
+
+            bat '''
+                @echo off
+
+                setlocal
+
+                set "JAVA_HOME=%JAVA_HOME%"
+                set "PATH=%JAVA_HOME%\\bin;%PATH%"
+
+                set "JENKINS_NODE_COOKIE=dontKillMe"
+
+                echo JAVA_HOME:
+                echo %JAVA_HOME%
+
+                echo.
+                echo Backend JAR:
+                echo %APP_JAR%
+
+                if not exist "%APP_JAR%" (
+                    echo ERROR: Backend JAR not found.
+                    exit /b 1
+                )
+
+                echo.
+                echo Starting backend...
+
+                start "CorporateBanking-Backend" /B cmd /c "set JENKINS_NODE_COOKIE=dontKillMe && set JAVA_HOME=%JAVA_HOME% && java -jar "%APP_JAR%" > "%WORKSPACE%\\backend.log" 2>&1"
+
+                echo Backend start command executed.
+
+                echo.
+                echo Waiting for backend...
+
+                ping 127.0.0.1 -n 8 >nul
+
+                echo.
+                echo ==========================================
+                echo BACKEND LOG
+                echo ==========================================
+
+                if exist "%WORKSPACE%\\backend.log" (
+                    powershell -NoProfile -Command "Get-Content '%WORKSPACE%\\backend.log' -Tail 50"
+                ) else (
+                    echo backend.log has not been created yet.
+                )
+            '''
+        }
+    }
+
+    // ============================================================
+    // 8. BACKEND HEALTH CHECK
+    // ============================================================
+
+    stage('Backend Health Check') {
+
+        steps {
+
+            echo '=========================================='
+            echo 'BACKEND HEALTH CHECK'
+            echo '=========================================='
+
+            bat '''
+                @echo off
+
+                setlocal enabledelayedexpansion
+
+                set "RETRIES=20"
+
+                :CHECK_BACKEND
+
+                echo.
+                echo Checking:
+                echo %BACKEND_URL%
+
+                curl -s -o nul -w "%%{http_code}" "%BACKEND_URL%" | findstr /R /C:"200" /C:"201" >nul
+
+                if not errorlevel 1 (
                     echo.
-                    echo Starting backend...
+                    echo ==========================================
+                    echo BACKEND IS RUNNING
+                    echo ==========================================
+                    exit /b 0
+                )
 
-                    start "CorporateBanking-Backend" /B cmd /c "set JENKINS_NODE_COOKIE=dontKillMe && set JAVA_HOME=%JAVA_HOME% && java -jar "%APP_JAR%" > "%WORKSPACE%\\backend.log" 2>&1"
+                echo Backend is not ready yet.
 
-                    echo Backend start command executed.
+                set /a RETRIES-=1
 
-                    echo.
-                    echo Waiting for backend...
-
-                    ping 127.0.0.1 -n 10 >nul
+                if !RETRIES! LEQ 0 (
 
                     echo.
                     echo ==========================================
-                    echo BACKEND LOG
+                    echo BACKEND HEALTH CHECK FAILED
                     echo ==========================================
+
+                    echo.
+                    echo PORT STATUS:
+
+                    netstat -ano | findstr :%BACKEND_PORT%
+
+                    echo.
+                    echo BACKEND LOG:
 
                     if exist "%WORKSPACE%\\backend.log" (
-                        powershell -Command "Get-Content '%WORKSPACE%\\backend.log' -Tail 40"
+                        type "%WORKSPACE%\\backend.log"
                     ) else (
                         echo backend.log not found.
                     )
-                '''
-            }
+
+                    exit /b 1
+                )
+
+                echo Waiting 3 seconds...
+
+                ping 127.0.0.1 -n 4 >nul
+
+                goto CHECK_BACKEND
+            '''
         }
+    }
 
-        // ============================================================
-        // 6. BACKEND HEALTH CHECK
-        // ============================================================
+    // ============================================================
+    // 9. FIND APPZILLON FILES
+    // ============================================================
 
-        stage('Backend Health Check') {
+    stage('Find Appzillon Files') {
 
-            steps {
+        steps {
 
-                echo '=========================================='
-                echo 'BACKEND HEALTH CHECK'
-                echo '=========================================='
+            echo '=========================================='
+            echo 'FINDING APPZILLON FILES'
+            echo '=========================================='
 
-                bat '''
-                    @echo off
+            powershell '''
+                $ErrorActionPreference = "Stop"
 
-                    set RETRIES=20
+                Write-Host "=========================================="
+                Write-Host "APPZILLON CONFIGURATION"
+                Write-Host "=========================================="
 
-                    :CHECK_BACKEND
+                Write-Host "APPZ_HOME      : $env:APPZ_HOME"
+                Write-Host "APPZ_ARTIFACTS : $env:APPZ_ARTIFACTS"
+                Write-Host "QUIZZ_PROJECT  : $env:QUIZZ_PROJECT"
+                Write-Host "QUIZZ_BIN      : $env:QUIZZ_BIN"
 
-                    echo.
-                    echo Checking:
-                    echo %BACKEND_URL%
+                # ------------------------------------------------
+                # VALIDATE TOMCAT
+                # ------------------------------------------------
 
-                    curl -s -o nul -w "%%{http_code}" "%BACKEND_URL%" | findstr "200 201"
+                if (-not (Test-Path $env:APPZ_HOME)) {
+                    throw "Tomcat directory not found: $env:APPZ_HOME"
+                }
 
-                    if not errorlevel 1 (
+                $catalina = Join-Path $env:APPZ_HOME "bin/catalina.bat"
 
-                        echo.
-                        echo ==========================================
-                        echo BACKEND IS RUNNING
-                        echo ==========================================
+                if (-not (Test-Path $catalina)) {
+                    throw "catalina.bat not found: $catalina"
+                }
 
-                        exit /b 0
-                    )
+                Write-Host "Tomcat found successfully."
 
-                    echo Backend not ready.
+                # ------------------------------------------------
+                # INITIALIZE VARIABLES
+                # ------------------------------------------------
 
-                    set /a RETRIES-=1
+                $webWar = $null
+                $serverWar = $null
+                $webProps = $null
+                $serverProps = $null
+                $dbPath = $null
 
-                    if %RETRIES% LEQ 0 (
+                # ------------------------------------------------
+                # SEARCH WEB WAR
+                # ------------------------------------------------
 
-                        echo.
-                        echo ==========================================
-                        echo BACKEND FAILED
-                        echo ==========================================
+                $webDirectory = Join-Path $env:QUIZZ_BIN "Web"
 
-                        echo.
-                        echo PORT STATUS:
+                if (Test-Path $webDirectory) {
 
-                        netstat -ano | findstr :%BACKEND_PORT%
+                    $file = Get-ChildItem `
+                        -Path $webDirectory `
+                        -Filter "*.war" `
+                        -Recurse `
+                        -File `
+                        -ErrorAction SilentlyContinue |
+                        Select-Object -First 1
 
-                        echo.
-                        echo BACKEND LOG:
+                    if ($file) {
+                        $webWar = $file.FullName
+                    }
+                }
 
-                        if exist "%WORKSPACE%\\backend.log" (
-                            type "%WORKSPACE%\\backend.log"
-                        ) else (
-                            echo backend.log not found.
-                        )
+                # ------------------------------------------------
+                # SEARCH SERVER WAR
+                # ------------------------------------------------
 
-                        exit /b 1
-                    )
+                $serverDirectory = Join-Path $env:QUIZZ_BIN "Server"
 
-                    echo Waiting 3 seconds...
+                if (Test-Path $serverDirectory) {
 
-                    ping 127.0.0.1 -n 4 >nul
+                    $file = Get-ChildItem `
+                        -Path $serverDirectory `
+                        -Filter "*.war" `
+                        -Recurse `
+                        -File `
+                        -ErrorAction SilentlyContinue |
+                        Select-Object -First 1
 
-                    goto CHECK_BACKEND
-                '''
-            }
+                    if ($file) {
+                        $serverWar = $file.FullName
+                    }
+                }
+
+                # ------------------------------------------------
+                # SEARCH WEB PROPERTIES
+                # ------------------------------------------------
+
+                $webPropertiesDirectory = Join-Path $env:QUIZZ_BIN "Web/Properties"
+
+                if (Test-Path $webPropertiesDirectory) {
+
+                    $directory = Get-ChildItem `
+                        -Path $webPropertiesDirectory `
+                        -Directory `
+                        -ErrorAction SilentlyContinue |
+                        Select-Object -First 1
+
+                    if ($directory) {
+                        $webProps = $directory.FullName
+                    }
+                }
+
+                # ------------------------------------------------
+                # SEARCH SERVER PROPERTIES
+                # ------------------------------------------------
+
+                $serverPropertiesDirectory = Join-Path $env:QUIZZ_BIN "Server/Properties"
+
+                if (Test-Path $serverPropertiesDirectory) {
+
+                    $directory = Get-ChildItem `
+                        -Path $serverPropertiesDirectory `
+                        -Directory `
+                        -ErrorAction SilentlyContinue |
+                        Select-Object -First 1
+
+                    if ($directory) {
+                        $serverProps = $directory.FullName
+                    }
+                }
+
+                # ------------------------------------------------
+                # SEARCH DATABASE
+                # ------------------------------------------------
+
+                $possibleDbPaths = @(
+                    (Join-Path $env:QUIZZ_BIN "Server/Database/MySql"),
+                    (Join-Path $env:QUIZZ_BIN "Server/Properties/AppzillonServer/quizzz/Database/MySql"),
+                    (Join-Path $env:APPZ_ARTIFACTS "lib/AppzillonServer/quizzz/Database/MySql")
+                )
+
+                foreach ($path in $possibleDbPaths) {
+
+                    if (Test-Path $path) {
+                        $dbPath = $path
+                        break
+                    }
+                }
+
+                # ------------------------------------------------
+                # WEB WAR FALLBACK
+                # ------------------------------------------------
+
+                if (-not $webWar) {
+
+                    $fallbackWebWar = Join-Path $env:APPZ_ARTIFACTS "quizzz.war"
+
+                    if (Test-Path $fallbackWebWar) {
+                        $webWar = $fallbackWebWar
+                    }
+                }
+
+                # ------------------------------------------------
+                # SERVER WAR FALLBACK
+                # ------------------------------------------------
+
+                if (-not $serverWar) {
+
+                    $fallbackServerWar = Join-Path $env:APPZ_ARTIFACTS "AppzillonServer.war"
+
+                    if (Test-Path $fallbackServerWar) {
+                        $serverWar = $fallbackServerWar
+                    }
+                }
+
+                # ------------------------------------------------
+                # WEB PROPERTIES FALLBACK
+                # ------------------------------------------------
+
+                if (-not $webProps) {
+
+                    $fallbackWebProps = Join-Path $env:APPZ_ARTIFACTS "quizzz"
+
+                    if (Test-Path $fallbackWebProps) {
+                        $webProps = $fallbackWebProps
+                    }
+                }
+
+                # ------------------------------------------------
+                # SERVER PROPERTIES FALLBACK
+                # ------------------------------------------------
+
+                if (-not $serverProps) {
+
+                    $fallbackServerProps = Join-Path $env:APPZ_ARTIFACTS "lib/AppzillonServer"
+
+                    if (Test-Path $fallbackServerProps) {
+                        $serverProps = $fallbackServerProps
+                    }
+                }
+
+                # ------------------------------------------------
+                # DISPLAY RESULTS
+                # ------------------------------------------------
+
+                Write-Host ""
+                Write-Host "=========================================="
+                Write-Host "DISCOVERED APPZILLON FILES"
+                Write-Host "=========================================="
+
+                Write-Host "Web WAR      : $webWar"
+                Write-Host "Server WAR   : $serverWar"
+                Write-Host "Web Props    : $webProps"
+                Write-Host "Server Props : $serverProps"
+                Write-Host "DB Path      : $dbPath"
+
+                # ------------------------------------------------
+                # WEB WAR IS REQUIRED
+                # ------------------------------------------------
+
+                if (-not $webWar) {
+                    throw "Web WAR was not found."
+                }
+
+                if (-not (Test-Path $webWar)) {
+                    throw "Web WAR does not exist: $webWar"
+                }
+
+                # ------------------------------------------------
+                # SAVE DISCOVERED VALUES
+                # ------------------------------------------------
+
+                $content = @(
+                    "WEB_WAR=$webWar"
+                    "SERVER_WAR=$serverWar"
+                    "WEB_PROPS=$webProps"
+                    "SERVER_PROPS=$serverProps"
+                    "DB_PATH=$dbPath"
+                )
+
+                $variablesFile = Join-Path $env:WORKSPACE "appzillon_vars.txt"
+
+                Set-Content `
+                    -Path $variablesFile `
+                    -Value $content `
+                    -Encoding UTF8
+
+                Write-Host ""
+                Write-Host "Appzillon variables saved:"
+                Write-Host $variablesFile
+            '''
         }
+    }
 
-        // ============================================================
-        // 7. FIND APPZILLON FILES
-        // ============================================================
+    // ============================================================
+    // 10. COPY APPZILLON PROPERTIES
+    // ============================================================
 
-        stage('Find Appzillon Files') {
+    stage('Copy Appzillon Properties') {
 
-            steps {
+        steps {
 
-                echo '=========================================='
-                echo 'FINDING APPZILLON FILES'
-                echo '=========================================='
-
-                powershell '''
-                    $ErrorActionPreference = "Stop"
-
-                    Write-Host "=========================================="
-                    Write-Host "APPZILLON CONFIGURATION"
-                    Write-Host "=========================================="
-
-                    Write-Host "APPZ_HOME       : $env:APPZ_HOME"
-                    Write-Host "QUIZZ_PROJECT   : $env:QUIZZ_PROJECT"
-                    Write-Host "QUIZZ_BIN       : $env:QUIZZ_BIN"
-                    Write-Host "APPZ_ARTIFACTS  : $env:APPZ_ARTIFACTS"
-
-                    # ------------------------------------------------
-                    # CHECK TOMCAT
-                    # ------------------------------------------------
-
-                    if (-not (Test-Path $env:APPZ_HOME)) {
-
-                        Write-Host "ERROR: Tomcat directory not found."
-                        Write-Host $env:APPZ_HOME
-
-                        exit 1
-                    }
-
-                    if (-not (Test-Path "$env:APPZ_HOME/bin/catalina.bat")) {
-
-                        Write-Host "ERROR: catalina.bat not found."
-
-                        exit 1
-                    }
-
-                    Write-Host "Tomcat found successfully."
-
-                    $webWar = $null
-                    $serverWar = $null
-                    $webProps = $null
-                    $serverProps = $null
-                    $dbPath = $null
-
-                    # ------------------------------------------------
-                    # WEB WAR
-                    # ------------------------------------------------
-
-                    if (Test-Path "$env:QUIZZ_BIN/Web") {
-
-                        $file = Get-ChildItem `
-                            -Path "$env:QUIZZ_BIN/Web" `
-                            -Filter "*.war" `
-                            -Recurse `
-                            -ErrorAction SilentlyContinue |
-                            Select-Object -First 1
-
-                        if ($file) {
-                            $webWar = $file.FullName
-                        }
-                    }
-
-                    # ------------------------------------------------
-                    # SERVER WAR
-                    # ------------------------------------------------
-
-                    if (Test-Path "$env:QUIZZ_BIN/Server") {
-
-                        $file = Get-ChildItem `
-                            -Path "$env:QUIZZ_BIN/Server" `
-                            -Filter "*.war" `
-                            -Recurse `
-                            -ErrorAction SilentlyContinue |
-                            Select-Object -First 1
-
-                        if ($file) {
-                            $serverWar = $file.FullName
-                        }
-                    }
-
-                    # ------------------------------------------------
-                    # WEB PROPERTIES
-                    # ------------------------------------------------
-
-                    if (Test-Path "$env:QUIZZ_BIN/Web/Properties") {
-
-                        $directory = Get-ChildItem `
-                            -Path "$env:QUIZZ_BIN/Web/Properties" `
-                            -Directory `
-                            -ErrorAction SilentlyContinue |
-                            Select-Object -First 1
-
-                        if ($directory) {
-                            $webProps = $directory.FullName
-                        }
-                    }
-
-                    # ------------------------------------------------
-                    # SERVER PROPERTIES
-                    # ------------------------------------------------
-
-                    if (Test-Path "$env:QUIZZ_BIN/Server/Properties") {
-
-                        $directory = Get-ChildItem `
-                            -Path "$env:QUIZZ_BIN/Server/Properties" `
-                            -Directory `
-
+            echo '==========================================
+```
