@@ -1,383 +1,870 @@
-pipeline {
+@echo off
 
-agent any
+setlocal EnableExtensions EnableDelayedExpansion
+ 
+title Appzillon RBC Deployment
+ 
+echo ==================================================
 
-options {
-    timeout(time: 60, unit: 'MINUTES')
-    disableConcurrentBuilds()
-}
+echo       APPZILLON RBC DEPLOYMENT STARTED
 
-environment {
+echo ==================================================
+ 
+REM ==================================================
 
-    JAVA_HOME = 'C:/Program Files/Java/jdk-17.0.2'
-    MAVEN_HOME = 'D:/apache-maven-3.8.5'
+REM CONFIGURATION
 
-    BACKEND_PORT = '8080'
-    BACKEND_URL = 'http://localhost:8080/api/transfers'
+REM CHANGE ONLY VALUES IN THIS SECTION
 
-    APPZ_HOME = 'D:/Tomcat9/apache-tomcat-9.0.53/apache-tomcat-9.0.53'
-    TOMCAT_PORT = '8085'
-    APPZILLON_URL = 'http://localhost:8085/Corporate_Banking'
+REM ==================================================
+ 
+REM --- Appzillon Project Build Folder ---
 
-    APPZ_ARTIFACTS = 'D:/forDeploy'
-    QUIZZ_PROJECT = 'D:/Corporate_Banking/Corporate_Banking'
-    QUIZZ_BIN = 'D:/Corporate_Banking/Corporate_Banking/bin'
+set "PROJECT_BIN=D:\Corporate_Banking\Corporate_Banking\bin"
+ 
+REM --- Tomcat Installation ---
 
-    DB_NAME = 'corporate_banking'
-    DB_USER = 'root'
-    DB_PASS = 'root'
-    MYSQL_BIN = 'C:/Program Files/MySQL/MySQL Server 8.0/bin'
-}
+set "TOMCAT_HOME=D:\Tomcat9\apache-tomcat-9.0.53\apache-tomcat-9.0.53"
+ 
+REM --- MySQL Configuration ---
 
-stages {
+set "MYSQL_HOME=C:\Program Files\MySQL\MySQL Server 8.0\bin"
 
-    stage('Checkout Source') {
+set "MYSQL_USER=root"
 
-        steps {
+set "MYSQL_PASSWORD=root"
 
-            echo '=========================================='
-            echo 'CHECKING OUT SOURCE CODE'
-            echo '=========================================='
+set "MYSQL_DATABASE=corporate_banking"
+ 
+REM --- Application URL ---
 
-            checkout scm
+set "APP_URL=http://localhost:8085/Corporate_Banking"
+ 
+REM --- Deployment Window Timeout ---
 
-            bat '''
-                @echo off
+REM 3 HOURS = 3 * 60 * 60 = 10800 SECONDS
+
+set "DEPLOYMENT_TIMEOUT=10800"
+ 
+REM ==================================================
+
+REM DERIVED PATHS - DON'T CHANGE
+
+REM ==================================================
+ 
+set "WEB=%PROJECT_BIN%\Web"
+
+set "SERVER=%PROJECT_BIN%\Server"
+ 
+set "WEB_PROPERTIES=%WEB%\Properties"
+
+set "SERVER_PROPERTIES=%SERVER%\Properties"
+
+set "DATABASE=%SERVER%\Database\MySql"
+ 
+set "TOMCAT_WEBAPPS=%TOMCAT_HOME%\webapps"
+
+set "TOMCAT_LIB=%TOMCAT_HOME%\lib"
+
+set "TOMCAT_BIN=%TOMCAT_HOME%\bin"
+ 
+set "MYSQL=%MYSQL_HOME%\mysql.exe"
+ 
+REM ==================================================
+
+REM VALIDATE CONFIGURATION
+
+REM ==================================================
+ 
+echo.
+
+echo ==================================================
+
+echo Checking configuration...
+
+echo ==================================================
+ 
+if not exist "%PROJECT_BIN%" (
+
+    echo.
+
+    echo ERROR: Project build folder not found:
+
+    echo %PROJECT_BIN%
+
+    echo.
+
+    pause
+
+    exit /b 1
+
+)
+ 
+if not exist "%TOMCAT_HOME%" (
+
+    echo.
+
+    echo ERROR: Tomcat folder not found:
+
+    echo %TOMCAT_HOME%
+
+    echo.
+
+    pause
+
+    exit /b 1
+
+)
+ 
+if not exist "%MYSQL%" (
+
+    echo.
+
+    echo ERROR: MySQL executable not found:
+
+    echo %MYSQL%
+
+    echo.
+
+    pause
+
+    exit /b 1
+
+)
+ 
+if not exist "%TOMCAT_WEBAPPS%" (
+
+    echo.
+
+    echo ERROR: Tomcat webapps folder not found:
+
+    echo %TOMCAT_WEBAPPS%
+
+    echo.
+
+    pause
+
+    exit /b 1
+
+)
+ 
+echo.
+
+echo Configuration OK.
+ 
+REM ==================================================
+
+REM 1. SHUTDOWN TOMCAT
+
+REM ==================================================
+ 
+echo.
+
+echo ==================================================
+
+echo [1/7] Stopping Tomcat...
+
+echo ==================================================
+ 
+call "%TOMCAT_BIN%\shutdown.bat"
+ 
+echo.
+
+echo Waiting for Tomcat to stop...
+
+timeout /t 10 /nobreak >nul
+ 
+echo Tomcat shutdown command completed.
+ 
+REM ==================================================
+
+REM 2. COPY WEB WAR
+
+REM ==================================================
+ 
+echo.
+
+echo ==================================================
+
+echo [2/7] Copying Web WAR...
+
+echo ==================================================
+ 
+set "WEB_WAR_FOUND=0"
+ 
+for %%F in ("%WEB%\*.war") do (
+
+    if exist "%%~fF" (
+
+        set "WEB_WAR_FOUND=1"
+ 
+        echo.
+
+        echo Copying Web WAR:
+
+        echo %%~nxF
+ 
+        copy /Y "%%~fF" "%TOMCAT_WEBAPPS%\" >nul
+ 
+        if errorlevel 1 (
+
+            echo.
+
+            echo ERROR: Failed to copy Web WAR:
+
+            echo %%~nxF
+
+            echo.
+
+            pause
+
+            exit /b 1
+
+        )
+ 
+        echo Web WAR copied successfully.
+
+    )
+
+)
+ 
+if "%WEB_WAR_FOUND%"=="0" (
+
+    echo.
+
+    echo WARNING: No Web WAR found in:
+
+    echo %WEB%
+
+)
+ 
+echo.
+
+echo Web WAR copy completed.
+ 
+REM ==================================================
+
+REM 3. COPY WEB PROPERTIES
+
+REM ==================================================
+ 
+echo.
+
+echo ==================================================
+
+echo [3/7] Copying Web Properties...
+
+echo ==================================================
+ 
+if exist "%WEB_PROPERTIES%" (
+ 
+    for /D %%D in ("%WEB_PROPERTIES%\*") do (
+ 
+        if exist "%%~fD" (
+ 
+            echo.
+
+            echo Copying Web Properties folder:
+
+            echo %%~nxD
+ 
+            xcopy "%%~fD" "%TOMCAT_LIB%\%%~nxD\" /E /I /Y >nul
+ 
+            if errorlevel 1 (
 
                 echo.
-                echo Workspace:
-                echo %WORKSPACE%
+
+                echo ERROR: Failed to copy Web Properties:
+
+                echo %%~nxD
 
                 echo.
-                echo Repository files:
-                dir /b
+
+                pause
+
+                exit /b 1
+
+            )
+ 
+            echo Web Properties copied successfully.
+
+        )
+
+    )
+ 
+) else (
+ 
+    echo.
+
+    echo WARNING: Web Properties folder not found:
+
+    echo %WEB_PROPERTIES%
+ 
+)
+ 
+echo.
+
+echo Web Properties copy completed.
+ 
+REM ==================================================
+
+REM 4. COPY SERVER WAR
+
+REM ==================================================
+ 
+echo.
+
+echo ==================================================
+
+echo [4/7] Copying Server WAR...
+
+echo ==================================================
+ 
+set "SERVER_WAR_FOUND=0"
+ 
+for %%F in ("%SERVER%\*.war") do (
+ 
+    if exist "%%~fF" (
+ 
+        set "SERVER_WAR_FOUND=1"
+ 
+        echo.
+
+        echo Copying Server WAR:
+
+        echo %%~nxF
+ 
+        copy /Y "%%~fF" "%TOMCAT_WEBAPPS%\" >nul
+ 
+        if errorlevel 1 (
+
+            echo.
+
+            echo ERROR: Failed to copy Server WAR:
+
+            echo %%~nxF
+
+            echo.
+
+            pause
+
+            exit /b 1
+
+        )
+ 
+        echo Server WAR copied successfully.
+
+    )
+
+)
+ 
+if "%SERVER_WAR_FOUND%"=="0" (
+
+    echo.
+
+    echo WARNING: No Server WAR found in:
+
+    echo %SERVER%
+
+)
+ 
+echo.
+
+echo Server WAR copy completed.
+ 
+REM ==================================================
+
+REM 5. COPY APPZILLON SERVER PROPERTIES
+
+REM ==================================================
+ 
+echo.
+
+echo ==================================================
+
+echo [5/7] Copying AppzillonServer properties...
+
+echo ==================================================
+ 
+set "APPZILLON_PROPERTIES=%SERVER_PROPERTIES%\AppzillonServer"
+ 
+if exist "%APPZILLON_PROPERTIES%" (
+ 
+    for %%F in ("%APPZILLON_PROPERTIES%\*") do (
+ 
+        if exist "%%~fF" (
+ 
+            echo.
+
+            echo Copying:
+
+            echo %%~nxF
+ 
+            copy /Y "%%~fF" "%TOMCAT_LIB%\" >nul
+ 
+            if errorlevel 1 (
 
                 echo.
-                echo Source checkout completed.
-            '''
-        }
-    }
 
-    stage('Find Maven Project') {
+                echo ERROR: Failed to copy:
 
-        steps {
-
-            echo '=========================================='
-            echo 'SEARCHING FOR POM.XML'
-            echo '=========================================='
-
-            bat '''
-                @echo off
-                setlocal enabledelayedexpansion
-
-                set "POM_FILE="
-
-                for /f "delims=" %%F in ('dir /s /b "%WORKSPACE%\\pom.xml" 2^>nul') do (
-                    if not defined POM_FILE (
-                        set "POM_FILE=%%F"
-                    )
-                )
-
-                if not defined POM_FILE (
-                    echo.
-                    echo ERROR: pom.xml was not found.
-                    echo.
-                    echo Workspace:
-                    echo %WORKSPACE%
-
-                    echo.
-                    echo Searching workspace:
-                    dir /s /b "%WORKSPACE%\\*pom.xml" 2>nul
-
-                    exit /b 1
-                )
+                echo %%~nxF
 
                 echo.
-                echo ==========================================
-                echo POM.XML FOUND
-                echo ==========================================
 
-                echo !POM_FILE!
+                pause
 
-                for %%F in ("!POM_FILE!") do (
-                    echo !POM_FILE! > "%WORKSPACE%\\pom_path.txt"
-                    echo %%~dpF > "%WORKSPACE%\\maven_project_dir.txt"
-                )
+                exit /b 1
 
-                echo.
-                echo Maven project directory:
-                type "%WORKSPACE%\\maven_project_dir.txt"
-            '''
-        }
-    }
+            )
+ 
+            echo File copied successfully.
 
-    stage('Build Backend Jar') {
+        )
 
-        steps {
+    )
+ 
+) else (
+ 
+    echo.
 
-            echo '=========================================='
-            echo 'BUILDING CORPORATE BANKING BACKEND'
-            echo '=========================================='
+    echo WARNING: AppzillonServer properties folder not found:
 
-            bat '''
-                @echo off
-                setlocal enabledelayedexpansion
+    echo %APPZILLON_PROPERTIES%
+ 
+)
+ 
+echo.
 
-                set "JAVA_HOME=%JAVA_HOME%"
-                set "PATH=%JAVA_HOME%\\bin;%MAVEN_HOME%\\bin;%PATH%"
+echo AppzillonServer properties copy completed.
+ 
+REM ==================================================
 
-                echo.
-                echo ==========================================
-                echo JAVA VERSION
-                echo ==========================================
+REM 6. RUN MYSQL DATABASE SCRIPTS
 
-                java -version
+REM ==================================================
+ 
+echo.
 
-                if errorlevel 1 (
-                    echo ERROR: Java is not available.
-                    exit /b 1
-                )
+echo ==================================================
 
-                echo.
-                echo ==========================================
-                echo MAVEN VERSION
-                echo ==========================================
+echo [6/7] Running MySQL database scripts...
 
-                mvn -version
+echo ==================================================
+ 
+if not exist "%MYSQL%" (
 
-                if errorlevel 1 (
-                    echo ERROR: Maven is not available.
-                    exit /b 1
-                )
+    echo.
 
-                if not exist "%WORKSPACE%\\maven_project_dir.txt" (
-                    echo ERROR: Maven project directory file not found.
-                    exit /b 1
-                )
+    echo ERROR: MySQL executable not found:
 
-                set /p MAVEN_PROJECT_DIR=<"%WORKSPACE%\\maven_project_dir.txt"
+    echo %MYSQL%
 
-                echo.
-                echo Maven project directory:
-                echo !MAVEN_PROJECT_DIR!
+    echo.
 
-                cd /d "!MAVEN_PROJECT_DIR!"
+    pause
 
-                echo.
-                echo Current directory:
-                cd
+    exit /b 1
 
-                echo.
-                echo ==========================================
-                echo RUNNING MAVEN BUILD
-                echo ==========================================
+)
+ 
+echo.
 
-                call mvn clean package -DskipTests
+echo MySQL       : %MYSQL%
 
-                if errorlevel 1 (
-                    echo.
-                    echo ==========================================
-                    echo MAVEN BUILD FAILED
-                    echo ==========================================
+echo User        : %MYSQL_USER%
 
-                    exit /b 1
-                )
+echo Database    : %MYSQL_DATABASE%
 
-                echo.
-                echo ==========================================
-                echo MAVEN BUILD SUCCESSFUL
-                echo ==========================================
+echo Script Path : %DATABASE%
+ 
+if not exist "%DATABASE%" (
 
-                echo.
-                echo Target directory:
-                dir target
-            '''
-        }
-    }
+    echo.
 
-    stage('Find Generated Backend Jar') {
+    echo ERROR: Database script folder not found:
 
-        steps {
+    echo %DATABASE%
 
-            echo '=========================================='
-            echo 'SEARCHING FOR GENERATED BACKEND JAR'
-            echo '=========================================='
+    echo.
 
-            bat '''
-                @echo off
-                setlocal enabledelayedexpansion
+    pause
 
-                if not exist "%WORKSPACE%\\maven_project_dir.txt" (
-                    echo ERROR: Maven project directory file not found.
-                    exit /b 1
-                )
+    exit /b 1
 
-                set /p MAVEN_PROJECT_DIR=<"%WORKSPACE%\\maven_project_dir.txt"
+)
+ 
+set "SQL_FOUND=0"
+ 
+for %%F in ("%DATABASE%\*.sql") do (
+ 
+    if exist "%%~fF" (
+ 
+        set "SQL_FOUND=1"
+ 
+        echo.
 
-                cd /d "!MAVEN_PROJECT_DIR!"
+        echo --------------------------------------------------
 
-                set "APP_JAR="
+        echo Executing:
 
-                for /f "delims=" %%F in ('dir /b /a-d "target\\*.jar" 2^>nul') do (
+        echo %%~nxF
 
-                    echo Checking JAR: %%F
+        echo --------------------------------------------------
+ 
+        "%MYSQL%" -u%MYSQL_USER% -p%MYSQL_PASSWORD% "%MYSQL_DATABASE%" < "%%~fF"
+ 
+        if errorlevel 1 (
 
-                    echo %%F | findstr /I /C:"original-" >nul
+            echo.
 
-                    if errorlevel 1 (
-                        if not defined APP_JAR (
-                            set "APP_JAR=!MAVEN_PROJECT_DIR!\\target\\%%F"
-                        )
-                    )
-                )
+            echo ==================================================
 
-                if not defined APP_JAR (
-                    echo.
-                    echo ==========================================
-                    echo ERROR: GENERATED JAR NOT FOUND
-                    echo ==========================================
+            echo ERROR: Database script failed
 
-                    echo.
-                    echo Target contents:
-                    dir target
+            echo File: %%~nxF
 
-                    exit /b 1
-                )
+            echo ==================================================
 
-                echo.
-                echo ==========================================
-                echo GENERATED JAR FOUND
-                echo ==========================================
+            echo.
 
-                echo !APP_JAR!
+            pause
 
-                echo !APP_JAR! > "%WORKSPACE%\\backend_jar_path.txt"
+            exit /b 1
 
-                echo.
-                echo JAR path saved successfully.
-            '''
-        }
-    }
+        )
+ 
+        echo.
 
-    stage('Verify Backend Jar') {
+        echo Successfully executed:
 
-        steps {
+        echo %%~nxF
 
-            echo '=========================================='
-            echo 'VERIFYING BACKEND JAR'
-            echo '=========================================='
+    )
 
-            bat '''
-                @echo off
+)
+ 
+if "%SQL_FOUND%"=="0" (
 
-                if not exist "%WORKSPACE%\\backend_jar_path.txt" (
-                    echo ERROR: backend_jar_path.txt was not created.
-                    exit /b 1
-                )
+    echo.
 
-                set /p APP_JAR=<"%WORKSPACE%\\backend_jar_path.txt"
+    echo WARNING: No SQL files found in:
 
-                echo Backend JAR:
-                echo %APP_JAR%
+    echo %DATABASE%
 
-                if not exist "%APP_JAR%" (
-                    echo ERROR: Backend JAR does not exist.
-                    exit /b 1
-                )
+)
+ 
+echo.
 
-                echo.
-                echo ==========================================
-                echo BACKEND JAR VERIFIED
-                echo ==========================================
+echo All MySQL scripts executed successfully.
+ 
+REM ==================================================
 
-                dir "%APP_JAR%"
-            '''
-        }
-    }
+REM 7. START TOMCAT
 
-    stage('Stop Old Backend') {
+REM ==================================================
+ 
+echo.
 
-        steps {
+echo ==================================================
 
-            echo '=========================================='
-            echo 'STOPPING OLD BACKEND'
-            echo '=========================================='
+echo [7/7] Starting Tomcat...
 
-            bat '''
-                @echo off
+echo ==================================================
+ 
+echo.
 
-                echo Checking port %BACKEND_PORT%...
+echo Starting Tomcat in a separate window...
 
-                for /f "tokens=5" %%a in (
-                    'netstat -ano ^| findstr :%BACKEND_PORT% ^| findstr LISTENING'
-                ) do (
+echo.
+ 
+REM --------------------------------------------------
 
-                    echo Stopping PID %%a
+REM IMPORTANT:
 
-                    taskkill /F /PID %%a >nul 2>&1
-                )
+REM /K keeps the Tomcat CMD window alive.
 
-                echo.
-                echo Waiting for old backend...
+REM CALL executes catalina.bat correctly.
 
-                ping 127.0.0.1 -n 4 >nul
+REM --------------------------------------------------
+ 
+start "Tomcat Server" "%ComSpec%" /k call "%TOMCAT_BIN%\catalina.bat" run
+ 
+echo.
 
-                echo Backend process check completed.
-            '''
-        }
-    }
+echo Tomcat startup command executed.
 
-    stage('Deploy Backend') {
+echo.
 
-        steps {
+echo Tomcat Server window has been opened.
 
-            echo '=========================================='
-            echo 'STARTING BACKEND'
-            echo '=========================================='
+echo Tomcat Server window will remain open.
+ 
+REM ==================================================
 
-            bat '''
-                @echo off
-                setlocal enabledelayedexpansion
+REM WAIT FOR APPLICATION
 
-                set "JAVA_HOME=%JAVA_HOME%"
-                set "PATH=%JAVA_HOME%\\bin;%PATH%"
-                set "JENKINS_NODE_COOKIE=dontKillMe"
+REM ==================================================
+ 
+echo.
 
-                if not exist "%WORKSPACE%\\backend_jar_path.txt" (
-                    echo ERROR: Backend JAR path file not found.
-                    exit /b 1
-                )
+echo ==================================================
 
-                set /p APP_JAR=<"%WORKSPACE%\\backend_jar_path.txt"
+echo Waiting for Appzillon application to start...
 
-                if not exist "!APP_JAR!" (
-                    echo ERROR: Backend JAR does not exist:
-                    echo !APP_JAR!
-                    exit /b 1
-                )
+echo ==================================================
+ 
+set "MAX_RETRIES=60"
 
-                echo Backend JAR:
-                echo !APP_JAR!
+set "RETRY_COUNT=0"
+ 
+:CHECK_APP
+ 
+set /a RETRY_COUNT+=1
+ 
+echo.
 
-                echo.
-                echo Starting backend...
+echo Checking application...
 
-                start "CorporateBanking-Backend" /B cmd /c "set JENKINS_NODE_COOKIE=dontKillMe&&set JAVA_HOME=%JAVA_HOME%&&java -jar "!APP_JAR!" > "%WORKSPACE%\\backend.log" 2>&1"
+echo Attempt %RETRY_COUNT%/%MAX_RETRIES%
 
-                echo Backend start command executed.
+echo URL: %APP_URL%
+ 
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $response = Invoke-WebRequest -Uri '%APP_URL%' -UseBasicParsing -TimeoutSec 3; if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) { exit 0 } else { exit 1 } } catch { exit 1 }"
+ 
+if %ERRORLEVEL% EQU 0 (
 
-                echo.
-                echo Waiting for backend...
+    echo.
 
-                ping 127.0.0.1 -n 10 >nul
+    echo ==================================================
 
-                echo.
-                echo ==========================================
-                echo BACKEND LOG
-                echo ==========================================
+    echo APPZILLON APPLICATION IS READY
 
-                if exist "%WORKSPACE%\\backend.log" (
-                    powershell -NoProfile -Command "Get-Content '%WORKSPACE%\\backend.log' -Tail 50"
-                ) else (
-                    echo backend.log was not created.
-                )
+    echo ==================================================
+
+    goto OPEN_APP
+
+)
+ 
+if %RETRY_COUNT% GEQ %MAX_RETRIES% (
+ 
+    echo.
+
+    echo ==================================================
+
+    echo ERROR: APPZILLON APPLICATION DID NOT START
+
+    echo ==================================================
+
+    echo.
+
+    echo Please check the Tomcat Server window.
+
+    echo.
+
+    echo Tomcat should still be running.
+
+    echo.
+
+    pause
+
+    exit /b 1
+
+)
+ 
+timeout /t 5 /nobreak >nul
+ 
+goto CHECK_APP
+ 
+REM ==================================================
+
+REM OPEN APPLICATION
+
+REM ==================================================
+ 
+:OPEN_APP
+ 
+echo.
+
+echo ==================================================
+
+echo Opening Appzillon application...
+
+echo ==================================================
+ 
+start "" "%APP_URL%"
+ 
+REM ==================================================
+
+REM DEPLOYMENT COMPLETED
+
+REM ==================================================
+ 
+echo.
+
+echo ==================================================
+
+echo     APPZILLON RBC DEPLOYMENT COMPLETED
+
+echo ==================================================
+ 
+echo.
+
+echo Application URL:
+
+echo %APP_URL%
+ 
+echo.
+
+echo Tomcat Home:
+
+echo %TOMCAT_HOME%
+ 
+echo.
+
+echo ==================================================
+
+echo Tomcat is still running.
+
+echo Tomcat Server window will remain open.
+
+echo ==================================================
+ 
+echo.
+
+echo ==================================================
+
+echo DEPLOYMENT WINDOW TIMEOUT
+
+echo ==================================================
+ 
+echo.
+
+echo This deployment window will remain open
+
+echo for 3 HOURS.
+
+echo.
+
+echo After 3 hours, this deployment window will
+
+echo automatically close.
+
+echo.
+
+echo IMPORTANT:
+
+echo This will NOT stop Tomcat.
+
+echo Tomcat Server will continue running.
+
+echo.
+ 
+REM ==================================================
+
+REM 3 HOUR TIMER
+
+REM ==================================================
+ 
+set /a REMAINING=%DEPLOYMENT_TIMEOUT%
+ 
+:THREE_HOUR_TIMER
+ 
+if %REMAINING% LEQ 0 goto TIMER_FINISHED
+ 
+set /a HOURS=REMAINING/3600
+
+set /a MINUTES=(REMAINING%%3600)/60
+
+set /a SECONDS=REMAINING%%60
+ 
+cls
+ 
+echo ==================================================
+
+echo     APPZILLON RBC DEPLOYMENT COMPLETED
+
+echo ==================================================
+
+echo.
+
+echo Application:
+
+echo %APP_URL%
+
+echo.
+
+echo Tomcat:
+
+echo RUNNING
+
+echo.
+
+echo ==================================================
+
+echo     DEPLOYMENT WINDOW REMAINING TIME
+
+echo ==================================================
+
+echo.
+
+echo        %HOURS% hours %MINUTES% minutes %SECONDS% seconds
+
+echo.
+
+echo ==================================================
+
+echo.
+
+echo This window will close automatically after
+
+echo the 3-hour timeout.
+
+echo.
+
+echo Tomcat will NOT be stopped.
+
+echo.
+ 
+timeout /t 1 /nobreak >nul
+ 
+set /a REMAINING-=1
+ 
+goto THREE_HOUR_TIMER
+ 
+REM ==================================================
+
+REM 3 HOURS COMPLETED
+
+REM ==================================================
+ 
+:TIMER_FINISHED
+ 
+cls
+ 
+echo.
+
+echo ==================================================
+
+echo       3 HOURS COMPLETED
+
+echo ==================================================
+ 
+echo.
+
+echo Deployment window is closing...
+
+echo.
+
+echo Tomcat is NOT being stopped.
+
+echo Tomcat Server window will remain running.
+
+echo.
+ 
+timeout /t 5 /nobreak >nul
+ 
+endlocal
+
+exit /b 0
+ 
